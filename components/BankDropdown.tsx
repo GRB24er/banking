@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import {
   Select,
@@ -21,27 +21,43 @@ export const BankDropdown = ({
 }: BankDropdownProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [selected, setSeclected] = useState(accounts[0]);
+
+  // Initialize selected with the first account or set it to null if accounts is empty
+  const [selected, setSelected] = useState<Account | null>(null);
+
+  // Ensure selected is set when accounts change (e.g., after fetching data)
+  useEffect(() => {
+    if (accounts.length > 0) {
+      setSelected(accounts[0]);
+    }
+  }, [accounts]);
 
   const handleBankChange = (id: string) => {
-    const account = accounts.find((account) => account.appwriteItemId === id)!;
+    const account = accounts.find((account) => account.appwriteItemId === id);
 
-    setSeclected(account);
-    const newUrl = formUrlQuery({
-      params: searchParams.toString(),
-      key: "id",
-      value: id,
-    });
-    router.push(newUrl, { scroll: false });
+    if (account) {
+      setSelected(account);
+      const newUrl = formUrlQuery({
+        params: searchParams.toString(),
+        key: "id",
+        value: id,
+      });
+      router.push(newUrl, { scroll: false });
 
-    if (setValue) {
-      setValue("senderBank", id);
+      if (setValue) {
+        setValue("senderBank", id);
+      }
     }
   };
 
+  // Render nothing if no accounts are available
+  if (!selected || accounts.length === 0) {
+    return <div>No accounts available.</div>;
+  }
+
   return (
     <Select
-      defaultValue={selected.id}
+      defaultValue={selected.appwriteItemId}
       onValueChange={(value) => handleBankChange(value)}
     >
       <SelectTrigger
