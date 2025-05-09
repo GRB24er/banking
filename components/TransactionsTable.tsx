@@ -1,14 +1,22 @@
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter,
 } from "@/components/ui/table"
 import { transactionCategoryStyles } from "@/constants"
 import { cn, formatAmount, formatDateTime, getTransactionStatus, removeSpecialCharacters } from "@/lib/utils"
+
+interface CategoryBadgeProps {
+  category: string;
+}
+
+interface TransactionTableProps {
+  transactions: Transaction[];
+}
 
 const CategoryBadge = ({ category }: CategoryBadgeProps) => {
   const {
@@ -16,7 +24,7 @@ const CategoryBadge = ({ category }: CategoryBadgeProps) => {
     backgroundColor,
     textColor,
     chipBackgroundColor,
-   } = transactionCategoryStyles[category as keyof typeof transactionCategoryStyles] || transactionCategoryStyles.default
+  } = transactionCategoryStyles[category as keyof typeof transactionCategoryStyles] || transactionCategoryStyles.default
    
   return (
     <div className={cn('category-badge', borderColor, chipBackgroundColor)}>
@@ -24,15 +32,39 @@ const CategoryBadge = ({ category }: CategoryBadgeProps) => {
       <p className={cn('text-[12px] font-medium', textColor)}>{category}</p>
     </div>
   )
-} 
+}
 
-const TransactionsTable = ({ transactions }: TransactionTableProps) => {
+const TransactionsTable = ({ transactions = [] }: TransactionTableProps) => {
+  // Calculate running balance
+  let runningBalance = 0;
+  const transactionsWithBalance = transactions.map(t => {
+    runningBalance = t.type === 'credit' 
+      ? runningBalance + t.amount 
+      : runningBalance - t.amount;
+    return { 
+      ...t, 
+      currentBalance: runningBalance 
+    };
+  });
+
+  // Calculate totals
+  const totalCredits = transactions
+    .filter(t => t.type === 'credit')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  const totalDebits = transactions
+    .filter(t => t.type === 'debit')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const netChange = totalCredits - totalDebits;
+
   return (
     <Table>
       <TableHeader className="bg-[#f9fafb]">
         <TableRow>
           <TableHead className="px-2">Transaction</TableHead>
           <TableHead className="px-2">Amount</TableHead>
+          <TableHead className="px-2">Balance</TableHead>
           <TableHead className="px-2">Status</TableHead>
           <TableHead className="px-2">Date</TableHead>
           <TableHead className="px-2 max-md:hidden">Channel</TableHead>
@@ -40,15 +72,17 @@ const TransactionsTable = ({ transactions }: TransactionTableProps) => {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {transactions.map((t: Transaction) => {
-          const status = getTransactionStatus(new Date(t.date))
-          const amount = formatAmount(t.amount)
-
+        {transactionsWithBalance.map((t) => {
+          const status = getTransactionStatus(new Date(t.date));
+          const amount = formatAmount(t.amount);
           const isDebit = t.type === 'debit';
           const isCredit = t.type === 'credit';
 
           return (
-            <TableRow key={t.id} className={`${isDebit || amount[0] === '-' ? 'bg-[#FFFBFA]' : 'bg-[#F6FEF9]'} !over:bg-none !border-b-DEFAULT`}>
+            <TableRow 
+              key={t.$id} 
+              className={`${isDebit ? 'bg-[#FFFBFA]' : 'bg-[#F6FEF9]'} !over:bg-none !border-b-DEFAULT`}
+            >
               <TableCell className="max-w-[250px] pl-2 pr-10">
                 <div className="flex items-center gap-3">
                   <h1 className="text-14 truncate font-semibold text-[#344054]">
@@ -58,15 +92,19 @@ const TransactionsTable = ({ transactions }: TransactionTableProps) => {
               </TableCell>
 
               <TableCell className={`pl-2 pr-10 font-semibold ${
-                isDebit || amount[0] === '-' ?
-                  'text-[#f04438]'
-                  : 'text-[#039855]'
+                isDebit ? 'text-[#f04438]' : 'text-[#039855]'
               }`}>
-                {isDebit ? `-${amount}` : isCredit ? amount : amount}
+                {isDebit ? `-${amount}` : amount}
+              </TableCell>
+
+              <TableCell className={`pl-2 pr-10 font-semibold ${
+                t.currentBalance < 0 ? 'text-[#f04438]' : 'text-[#039855]'
+              }`}>
+                {formatAmount(t.currentBalance)}
               </TableCell>
 
               <TableCell className="pl-2 pr-10">
-                <CategoryBadge category={status} /> 
+                <CategoryBadge category={status} />
               </TableCell>
 
               <TableCell className="min-w-32 pl-2 pr-10">
@@ -74,16 +112,41 @@ const TransactionsTable = ({ transactions }: TransactionTableProps) => {
               </TableCell>
 
               <TableCell className="pl-2 pr-10 capitalize min-w-24">
-               {t.paymentChannel}
+                {t.paymentChannel}
               </TableCell>
 
               <TableCell className="pl-2 pr-10 max-md:hidden">
-               <CategoryBadge category={t.category} /> 
+                <CategoryBadge category={t.category} />
               </TableCell>
             </TableRow>
           )
         })}
       </TableBody>
+      <TableFooter>
+        <TableRow>
+          <TableCell colSpan={3} className="text-right font-medium">Total Credits</TableCell>
+          <TableCell className="text-right text-[#039855] font-medium">
+            {formatAmount(totalCredits)}
+          </TableCell>
+          <TableCell colSpan={3}></TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell colSpan={3} className="text-right font-medium">Total Debits</TableCell>
+          <TableCell className="text-right text-[#f04438] font-medium">
+            -{formatAmount(totalDebits)}
+          </TableCell>
+          <TableCell colSpan={3}></TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell colSpan={3} className="text-right font-medium">Net Change</TableCell>
+          <TableCell className={`text-right font-medium ${
+            netChange >= 0 ? 'text-[#039855]' : 'text-[#f04438]'
+          }`}>
+            {netChange >= 0 ? '' : '-'}{formatAmount(Math.abs(netChange))}
+          </TableCell>
+          <TableCell colSpan={3}></TableCell>
+        </TableRow>
+      </TableFooter>
     </Table>
   )
 }
